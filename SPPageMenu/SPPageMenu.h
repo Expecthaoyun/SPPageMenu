@@ -17,7 +17,9 @@ typedef NS_ENUM(NSInteger, SPPageMenuTrackerStyle) {
     SPPageMenuTrackerStyleRoundedRect,               // 圆角矩形
     SPPageMenuTrackerStyleRect,                      // 矩形
     SPPageMenuTrackerStyleTextZoom NS_ENUM_DEPRECATED_IOS(2_0, 2_0, "该枚举值已经被废弃，请用“selectedItemZoomScale”属性代替"), // 缩放(该枚举已经被废弃),用属性代替的目的是让其余样式可与缩放样式配套使用，另外，SPPageMenuTrackerStyle指的都是跟踪器样式，文字缩放和跟踪器实际上是毫无关系的，该枚举名字取的也不太合理，缩放的不单单是文字，而是整个item。如果你同时设置了该枚举和selectedItemZoomScale属性，selectedItemZoomScale优先级高于SPPageMenuTrackerStyleTextZoom
-    SPPageMenuTrackerStyleNothing                    // 什么样式都没有
+    SPPageMenuTrackerStyleNothing,                    // 什么样式都没有
+    
+    SPPageMenuTrackerStyleAttachmentAndNothing        //下划线依恋样式，选中时有缩放效果
 };
 
 typedef NS_ENUM(NSInteger, SPPageMenuPermutationWay) {
@@ -65,8 +67,17 @@ typedef NS_ENUM(NSInteger, SPItemImagePosition) {
 
 /** item之间的间距,当permutationWay为‘SPPageMenuPermutationWayNotScrollAdaptContent’时此属性无效，无效是合理的，不可能做到“不可滑动且自适应内容”然后间距又自定义，这2者相互制约 */
 @property (nonatomic, assign) CGFloat itemPadding;
-/** item的标题字体 */
+
+/**  指示器距离底部的高度  默认  0 **/
+
+@property (nonatomic, assign) CGFloat trackerBottomPadding;
+
+/** item的标题字体  默认 14 */
 @property (nonnull, nonatomic, strong) UIFont *itemTitleFont;
+
+/** item 选中的标题字体大小 默认 14 **/
+@property (nonnull,nonatomic,strong) UIFont *itemSelectTitleFont;
+
 /** 选中的item标题颜色 */
 @property (nonatomic, strong) UIColor *selectedItemTitleColor;
 /** 未选中的item标题颜色 */
@@ -82,7 +93,7 @@ typedef NS_ENUM(NSInteger, SPItemImagePosition) {
 @property (nonatomic, assign)  CGFloat trackerWidth;
 /** 跟踪器,它是一个UIImageView类型，你可以拿到该对象去设置一些自己想要的属性,例如颜色,图片等，但是设置frame无效 */
 /** 1.如果你想设置跟踪器宽度，可以用trackerWidth属性，如果你设置了trackerWidth，那么所有的tracker样式下，宽度都将按照你设置的来;
-    2.如果你想设置跟踪器高度，可以用方法 - setTrackerHeight:cornerRadius: 来设置
+ 2.如果你想设置跟踪器高度，可以用方法 - setTrackerHeight:cornerRadius: 来设置
  */
 @property (nonatomic, readonly) UIImageView *tracker;
 
@@ -161,19 +172,19 @@ typedef NS_ENUM(NSInteger, SPItemImagePosition) {
 - (void)setFunctionButtonTitle:(nullable NSString *)title image:(nullable UIImage *)image imagePosition:(SPItemImagePosition)imagePosition imageRatio:(CGFloat)ratio forState:(UIControlState)state;
 
 /* 为functionButton配置相关属性，如设置字体、文字颜色等
-   在此,attributes中,只有NSFontAttributeName、NSForegroundColorAttributeName、NSBackgroundColorAttributeName有效
+ 在此,attributes中,只有NSFontAttributeName、NSForegroundColorAttributeName、NSBackgroundColorAttributeName有效
  */
 - (void)setFunctionButtonTitleTextAttributes:(nullable NSDictionary *)attributes forState:(UIControlState)state;
 
 /* 1.让跟踪器时刻跟随外界scrollView滑动,实现了让跟踪器的宽度逐渐适应item宽度的功能;
-   2.这个方法用于scrollViewDidScroll代理方法中，如
+ 2.这个方法用于scrollViewDidScroll代理方法中，如
  
-    - (void)scrollViewDidScroll:(UIScrollView *)scrollView {
-        [self.pageMenu moveTrackerFollowScrollView:scrollView];
-    }
+ - (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+ [self.pageMenu moveTrackerFollowScrollView:scrollView];
+ }
  
-    3.如果外界设置了SPPageMenu的属性"bridgeScrollView"，那么外界就可以不用在scrollViewDidScroll方法中调用这个方法来实现跟踪器时刻跟随外界scrollView的效果,内部会自动处理; 外界对SPPageMenu的属性"bridgeScrollView"赋值是实现此效果的最简便的操作
-    4.如果不想要此效果,可设置closeTrackerFollowingMode==YES
+ 3.如果外界设置了SPPageMenu的属性"bridgeScrollView"，那么外界就可以不用在scrollViewDidScroll方法中调用这个方法来实现跟踪器时刻跟随外界scrollView的效果,内部会自动处理; 外界对SPPageMenu的属性"bridgeScrollView"赋值是实现此效果的最简便的操作
+ 4.如果不想要此效果,可设置closeTrackerFollowingMode==YES
  */
 - (void)moveTrackerFollowScrollView:(UIScrollView *)scrollView;
 

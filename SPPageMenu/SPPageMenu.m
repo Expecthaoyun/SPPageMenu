@@ -236,7 +236,11 @@
     if (self = [super init]) {
         self.frame = frame;
         self.backgroundColor = [UIColor whiteColor];
+        if (trackerStyle == SPPageMenuTrackerStyleAttachmentAndNothing) {
+            self.selectedItemZoomScale=1.1;
+        }
         self.trackerStyle = trackerStyle;
+        [self setItemSelectTitleFont:_itemSelectTitleFont];
         [self setupStartColor:_selectedItemTitleColor];
         [self setupEndColor:_unSelectedItemTitleColor];
     }
@@ -255,15 +259,16 @@
         NSAssert([object isKindOfClass:[NSString class]] || [object isKindOfClass:[UIImage class]], @"items中的元素只能是NSString或UIImage类型");
         [self addButton:i object:object animated:NO];
     }
-
+    
     [self setNeedsLayout];
     [self layoutIfNeeded];
     
     if (self.buttons.count) {
         // 默认选中selectedItemIndex对应的按钮
         SPItem *selectedButton = [self.buttons objectAtIndex:selectedItemIndex];
+        selectedButton.titleLabel.font=_itemSelectTitleFont;
         [self buttonInPageMenuClicked:selectedButton];
-
+        
         // SPPageMenuTrackerStyleTextZoom和SPPageMenuTrackerStyleNothing样式跟tracker没有关联
         if (self.trackerStyle != SPPageMenuTrackerStyleTextZoom && self.trackerStyle != SPPageMenuTrackerStyleNothing) {
             [self.itemScrollView insertSubview:self.tracker atIndex:0];
@@ -456,7 +461,7 @@
     
     [self beginMoveTrackerFollowScrollView:scrollView];
 }
- 
+
 
 #pragma amrk - private
 
@@ -522,7 +527,9 @@
 - (void)initialize {
     
     _itemPadding = 30;
-    _itemTitleFont = [UIFont systemFontOfSize:16];
+    _trackerBottomPadding=0;
+    _itemTitleFont = [UIFont systemFontOfSize:14];
+    _itemSelectTitleFont=[UIFont fontWithName:@"Helvetica-Bold" size:14];
     _selectedItemTitleColor = [UIColor redColor];
     _unSelectedItemTitleColor = [UIColor blackColor];
     _trackerHeight = 3;
@@ -547,7 +554,7 @@
     backgroundView.layer.masksToBounds = YES;
     [self addSubview:backgroundView];
     _backgroundView = backgroundView;
-
+    
     UIScrollView *itemScrollView = [[UIScrollView alloc] init];
     itemScrollView.showsVerticalScrollIndicator = NO;
     itemScrollView.showsHorizontalScrollIndicator = NO;
@@ -583,6 +590,8 @@
     if (self.selectedButton != sender) {
         [self.selectedButton setTitleColor:_unSelectedItemTitleColor forState:UIControlStateNormal];
         [sender setTitleColor:_selectedItemTitleColor forState:UIControlStateNormal];
+        self.selectedButton.titleLabel.font=_itemTitleFont;
+        sender.titleLabel.font=_itemSelectTitleFont;
     } else { // 如果选中的按钮没有发生变化，比如用户往左边滑scrollView，还没滑动结束又开始往右滑动，此时选中的按钮就没变。如果设置了颜色渐变，而且当未选中的颜色带了不等于1的alpha值，如果用户往一边滑动还未结束又往另一边滑，则未选中的按钮颜色不是很准确。这个else就是去除这种不准确现象
         // 获取RGB和Alpha
         CGFloat red = 0.0;
@@ -595,12 +604,15 @@
             for (SPItem *button in self.buttons) {
                 if (button == sender) {
                     [button setTitleColor:_selectedItemTitleColor forState:UIControlStateNormal];
+                    button.titleLabel.font=_itemSelectTitleFont;
                 } else {
                     [button setTitleColor:_unSelectedItemTitleColor forState:UIControlStateNormal];
+                    button.titleLabel.font=_itemTitleFont;
                 }
             }
         } else {
             [sender setTitleColor:_selectedItemTitleColor forState:UIControlStateNormal];
+            sender.titleLabel.font=_itemSelectTitleFont;
         }
     }
     
@@ -609,18 +621,18 @@
     // 更新下item对应的下标,必须在代理之前，否则外界在代理方法中拿到的不是最新的,必须用下划线，用self.会造成死循环
     _selectedItemIndex = toIndex;
     [self delegatePerformMethodWithFromIndex:fromIndex toIndex:toIndex];
-
+    
     [self moveItemScrollViewWithSelectedButton:sender];
     
     if (self.trackerStyle == SPPageMenuTrackerStyleTextZoom || _selectedItemZoomScale != 1) {
-//        [UIView animateWithDuration:0.25 animations:^{
-            if (self.selectedButton != sender) {
-                self.selectedButton.transform = CGAffineTransformIdentity;
-                sender.transform = CGAffineTransformMakeScale(_selectedItemZoomScale, _selectedItemZoomScale);
-            } else {
-                sender.transform = CGAffineTransformMakeScale(_selectedItemZoomScale, _selectedItemZoomScale);
-            }
-//        }];
+        //        [UIView animateWithDuration:0.25 animations:^{
+        if (self.selectedButton != sender) {
+            self.selectedButton.transform = CGAffineTransformIdentity;
+            sender.transform = CGAffineTransformMakeScale(_selectedItemZoomScale, _selectedItemZoomScale);
+        } else {
+            sender.transform = CGAffineTransformMakeScale(_selectedItemZoomScale, _selectedItemZoomScale);
+        }
+        //        }];
     }
     if (fromIndex != toIndex) { // 如果相等，说明是第一次进来，或者2次点了同一个，此时不需要动画
         [self moveTrackerWithSelectedButton:sender];
@@ -650,7 +662,7 @@
     else if (offSetX > maxOffsetX){
         offSetX = maxOffsetX;
     }
-
+    
     [self.itemScrollView setContentOffset:CGPointMake(offSetX, 0) animated:YES];
     
 }
@@ -679,10 +691,10 @@
 }
 
 - (void)beginMoveTrackerFollowScrollView:(UIScrollView *)scrollView {
-
+    
     // 这个if条件的意思就是没有滑动的意思
     if (!scrollView.dragging && !scrollView.decelerating) {return;}
-
+    
     // 当滑到边界时，继续通过scrollView的bouces效果滑动时，直接return
     if (scrollView.contentOffset.x < 0 || scrollView.contentOffset.x > scrollView.contentSize.width-scrollView.bounds.size.width) {
         return;
@@ -700,7 +712,7 @@
     // 偏移进度
     CGFloat offsetProgress = currentOffSetX / scrollView.bounds.size.width;
     CGFloat progress = offsetProgress - floor(offsetProgress);
-
+    
     NSInteger fromIndex;
     NSInteger toIndex;
     
@@ -717,18 +729,18 @@
         toIndex = currentOffSetX / scrollView.bounds.size.width;
         fromIndex = toIndex + 1;
         progress = 1.0 - progress;
-
+        
     } else {
         progress = 1.0;
         fromIndex = self.selectedItemIndex;
         toIndex = fromIndex;
     }
-
+    
     if (currentOffSetX == scrollView.bounds.size.width * fromIndex) {// 滚动停止了
         progress = 1.0;
         toIndex = fromIndex;
     }
-
+    
     // 如果滚动停止，直接通过点击按钮选中toIndex对应的item
     if (currentOffSetX == scrollView.bounds.size.width*toIndex) { // 这里toIndex==fromIndex
         i = 0;
@@ -788,6 +800,37 @@
             }
         }
         self.tracker.frame = newFrame;
+        
+        if (_selectedItemZoomScale != 1) {
+            [self zoomForTitleWithProgress:progress fromButton:fromButton toButton:toButton];
+        }
+        
+    } else if (self.trackerStyle == SPPageMenuTrackerStyleAttachmentAndNothing){
+        // 这种样式的计算比较复杂,有个很关键的技巧，就是参考progress分别为0、0.5、1时的临界值
+        // 原先的x值
+        CGFloat originX = fromButton.frame.origin.x+(fromButton.frame.size.width-(_trackerWidth ? _trackerWidth : fromButton.titleLabel.font.pointSize))*0.5;
+        // 原先的宽度
+        CGFloat originW = _trackerWidth ? _trackerWidth : fromButton.titleLabel.font.pointSize;
+        if (currentOffsetX - _beginOffsetX >= 0) { // 向左拖拽了
+            if (progress < 0.5) {
+                newFrame.origin.x = originX; // x值保持不变
+                newFrame.size.width = originW + xDistance * progress * 2;
+            } else {
+                newFrame.origin.x = originX + xDistance * (progress-0.5) * 2;
+                newFrame.size.width = originW + xDistance - xDistance * (progress-0.5) * 2;
+            }
+        } else { // 向右拖拽了
+            // 此时xDistance为负
+            if (progress < 0.5) {
+                newFrame.origin.x = originX + xDistance * progress * 2;
+                newFrame.size.width = originW - xDistance * progress * 2;
+            } else {
+                newFrame.origin.x = originX + xDistance;
+                newFrame.size.width = originW - xDistance + xDistance * (progress-0.5) * 2;
+            }
+        }
+        self.tracker.frame = newFrame;
+        
         if (_selectedItemZoomScale != 1) {
             [self zoomForTitleWithProgress:progress fromButton:fromButton toButton:toButton];
         }
@@ -797,7 +840,7 @@
         if (_selectedItemZoomScale != 1) {
             [self zoomForTitleWithProgress:progress fromButton:fromButton toButton:toButton];
         }
-    } else if (self.trackerStyle == SPPageMenuTrackerStyleRoundedRect) {
+    }else if (self.trackerStyle == SPPageMenuTrackerStyleRoundedRect) {
         newCenter.x = fromButton.center.x + xDistance * progress;
         newFrame.size.width = _trackerWidth ? _trackerWidth : (fromButton.frame.size.width + wDistance * progress + (_itemTitleFont.lineHeight+10)*0.5);
         self.tracker.frame = newFrame;
@@ -872,6 +915,7 @@
 
 - (void)zoomForTitleWithProgress:(CGFloat)progress fromButton:(UIButton *)fromButton toButton:(UIButton *)toButton {
     CGFloat diff = _selectedItemZoomScale - 1;
+    
     fromButton.transform = CGAffineTransformMakeScale((1 - progress) * diff + 1, (1 - progress) * diff + 1);
     toButton.transform = CGAffineTransformMakeScale(progress * diff + 1, progress * diff + 1);
 }
@@ -908,6 +952,9 @@
         case SPPageMenuTrackerStyleLine:
         case SPPageMenuTrackerStyleLineLongerThanItem:
         case SPPageMenuTrackerStyleLineAttachment:
+            self.tracker.backgroundColor = _selectedItemTitleColor;
+            break;
+        case SPPageMenuTrackerStyleAttachmentAndNothing:
             self.tracker.backgroundColor = _selectedItemTitleColor;
             break;
         case SPPageMenuTrackerStyleRoundedRect:
@@ -976,6 +1023,15 @@
     for (SPItem *button in self.buttons) {
         button.titleLabel.font = itemTitleFont;
     }
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+    // 修正scrollView偏移
+    [self moveItemScrollViewWithSelectedButton:self.selectedButton];
+}
+
+-(void)setItemSelectTitleFont:(UIFont *)itemSelectTitleFont{
+    _itemSelectTitleFont=itemSelectTitleFont;
+    self.selectedButton.titleLabel.font=itemSelectTitleFont;
     [self setNeedsLayout];
     [self layoutIfNeeded];
     // 修正scrollView偏移
@@ -1087,7 +1143,7 @@
     CGFloat dividingLineX = 0;
     CGFloat dividingLineY = self.bounds.size.height-dividingLineH;
     self.dividingLine.frame = CGRectMake(dividingLineX, dividingLineY, dividingLineW, dividingLineH);
-
+    
     CGFloat functionButtonH = backgroundViewH-dividingLineH;
     CGFloat functionButtonW = functionButtonH;
     CGFloat functionButtonX = backgroundViewW-functionButtonW;
@@ -1103,7 +1159,7 @@
     
     // 存储itemScrollViewH,目的是解决选中按钮缩放后高度变化了的问题，我们要让选中的按钮缩放之后，依然保持原始高度
     _itemScrollViewH = itemScrollViewH;
-
+    
     __block CGFloat buttonW = 0.0;
     __block CGFloat lastButtonMaxX = 0.0;
     
@@ -1114,7 +1170,7 @@
     for (int i= 0 ; i < self.buttons.count; i++) {
         SPItem *button = self.buttons[i];
         
-        CGFloat setupButtonW = [[self.setupWidths objectForKey:[NSString stringWithFormat:@"%zd",i]] floatValue];
+        CGFloat setupButtonW = [[self.setupWidths objectForKey:[NSString stringWithFormat:@"%d",i]] floatValue];
         CGFloat textW = [button.titleLabel.text boundingRectWithSize:CGSizeMake(MAXFLOAT, itemScrollViewH) options:NSStringDrawingUsesLineFragmentOrigin attributes:@{NSFontAttributeName:_itemTitleFont} context:nil].size.width;
         CGFloat imageW = button.currentImage.size.width;
         if (button.currentTitle && !button.currentImage) {
@@ -1144,7 +1200,7 @@
                 button.frame = CGRectMake(_itemPadding*0.5+lastButtonMaxX, 0, buttonW, itemScrollViewH);
             } else {
                 button.frame = CGRectMake(_itemPadding+lastButtonMaxX, 0, buttonW, itemScrollViewH);
-
+                
             }
         } else if (self.permutationWay == SPPageMenuPermutationWayNotScrollEqualWidths) {
             // 求出外界设置的按钮宽度之和
@@ -1206,7 +1262,7 @@
             trackerW = _trackerWidth ? _trackerWidth : selectedButtonWidth;
             trackerH = _trackerHeight;
             trackerX = selectedButton.frame.origin.x;
-            trackerY = self.itemScrollView.bounds.size.height - trackerH;
+            trackerY = self.itemScrollView.bounds.size.height - trackerH - _trackerBottomPadding;
             self.tracker.frame = CGRectMake(trackerX, trackerY, trackerW, trackerH);
         }
             break;
@@ -1215,7 +1271,7 @@
             trackerW = _trackerWidth ? _trackerWidth : (selectedButtonWidth+(selectedButtonWidth ? _itemPadding : 0));
             trackerH = _trackerHeight;
             trackerX = selectedButton.frame.origin.x;
-            trackerY = self.itemScrollView.bounds.size.height - trackerH;
+            trackerY = self.itemScrollView.bounds.size.height - trackerH - _trackerBottomPadding;
             self.tracker.frame = CGRectMake(trackerX, trackerY, trackerW, trackerH);
         }
             break;
@@ -1224,7 +1280,16 @@
             trackerW = _trackerWidth ? _trackerWidth : (selectedButtonWidth ? selectedButton.titleLabel.font.pointSize : 0); // 没有自定义宽度就固定宽度为字体大小
             trackerH = _trackerHeight;
             trackerX = selectedButton.frame.origin.x;
-            trackerY = self.itemScrollView.bounds.size.height - trackerH;
+            trackerY = self.itemScrollView.bounds.size.height - trackerH - _trackerBottomPadding;
+            self.tracker.frame = CGRectMake(trackerX, trackerY, trackerW, trackerH);
+        }
+            break;
+        case SPPageMenuTrackerStyleAttachmentAndNothing:
+        {
+            trackerW = _trackerWidth ? _trackerWidth : (selectedButtonWidth ? selectedButton.titleLabel.font.pointSize : 0); // 没有自定义宽度就固定宽度为字体大小
+            trackerH = _trackerHeight;
+            trackerX = selectedButton.frame.origin.x;
+            trackerY = self.itemScrollView.bounds.size.height - trackerH - _trackerBottomPadding;
             self.tracker.frame = CGRectMake(trackerX, trackerY, trackerW, trackerH);
         }
             break;
@@ -1236,7 +1301,7 @@
             trackerY = (_itemScrollViewH-trackerH)*0.5;
             self.tracker.frame = CGRectMake(trackerX, trackerY, trackerW, trackerH);
             self.tracker.layer.cornerRadius = 0;
-
+            
         }
             break;
         case SPPageMenuTrackerStyleRoundedRect:
